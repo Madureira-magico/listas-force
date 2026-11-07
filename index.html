@@ -104,7 +104,7 @@ textarea.items{width:100%;border:0;font-size:15px;font-family:inherit;resize:ver
 #mark .zone{position:absolute;border:2px dashed #ffd60a;border-radius:12px;pointer-events:none;color:#ffd60a;font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;text-shadow:0 1px 3px #000}
 input[type=file]{display:none}
 .row.sx.hid{display:none}
-#sdot{position:absolute;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:rgba(255,255,255,.8);box-shadow:0 0 2px rgba(0,0,0,.35);display:none;pointer-events:none}
+#sdot{position:absolute;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:#30d158;box-shadow:0 0 2px rgba(0,0,0,.35);display:none;pointer-events:none}
 #sdot.on{display:block}
 /* ---------- DOCK (fundo trocado) ---------- */
 #plat{position:absolute;left:2.74%;right:2.74%;top:86.96%;height:11.9%;border-radius:9.4vw;background:rgba(255,255,255,.26);
@@ -226,7 +226,7 @@ html.sa .hbar{display:none}
         <div class="row sx sinj sntfy"><span>Última</span><span class="sub" id="sLast" style="max-width:70%">—</span></div>
         <div class="row sx sinj sntfy link" id="bDot"><span>Local do ponto de aviso (tela 1)</span></div>
       </div>
-      <div class="note">Coloque <b>$$$$</b> como um item da lista e marque-o como forçado. Quando chega a palavra, ela aparece no lugar do $$$$ (na posição do número). Sem palavra, o $$$$ fica escondido. A palavra vale até você voltar para a tela 1.<br>Quando a palavra chega, aparece um pontinho discreto na tela 1, no local que você escolher (só com "Receber de" ligado).<br>Inject: o app olha a última busca a cada segundo; quando muda, pergunta à IA (pelo intermediário do Cloudflare) e guarda a resposta.</div>
+      <div class="note">Coloque <b>$$$$</b> como um item da lista e marque-o como forçado. Quando chega a palavra, ela aparece no lugar do $$$$ (na posição do número). Sem palavra, o $$$$ fica escondido. A última palavra recebida fica valendo (mesmo voltando à tela 1 ou fechando o app) até chegar outra.<br>Quando chega uma palavra nova, aparece um ponto verde na tela 1 (some ao abrir o Notas), no local que você escolher (só com "Receber de" ligado).<br>Inject: o app olha a última busca a cada segundo; quando muda, pergunta à IA (pelo intermediário do Cloudflare) e guarda a resposta.</div>
 
       <span class="st">Tela de bloqueio</span>
       <div class="box">
@@ -364,7 +364,7 @@ function setPage(p,animate){const tr=$('#track');const to=-p*innerWidth;
 let lockPass=false; /* veio da senha: a 1ª passagem pelas telas não muda o número */
 function goTo(p){const old=page;
   if(p>old){ if(!lockPass){ if(old===0)d1=pend; if(old===1&&d1!=null){d2=pend;cfg.N=(d1*10+d2)||100;save();} } }
-  else if(p<old){ if(p===0){d1=null;d2=null;lockPass=false;setSecret(null);} if(p===1&&!lockPass){d2=null;} }
+  else if(p<old){ if(p===0){d1=null;d2=null;lockPass=false;} if(p===1&&!lockPass){d2=null;} }
   setPage(p,true);}
 let drag=null,pend=0,multi=false;
 const home=$('#home');
@@ -406,11 +406,11 @@ function noteDate(l){const d=new Date();d.setDate(d.getDate()-(+l.days||1));cons
 function dayLabel(l){const n=+l.days||1;if(n===1)return'Ontem';const d=noteDate(l);const w=new Intl.DateTimeFormat('pt-BR',{weekday:'long'}).format(d);
   return w.split('-').map(s=>s.charAt(0).toUpperCase()+s.slice(1)).join('-');}
 function fullDate(l){const d=noteDate(l);return String(d.getDate()).padStart(2,'0')+' '+MES[d.getMonth()]+' '+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
-const PH='$$$$';let secret=null; /* palavra recebida (vale até voltar à tela 1) */
+const PH='$$$$';let secret=store.get('secret',null),dotNew=false; /* última palavra recebida (fica até chegar outra) */
 const same=(a,b)=>String(a).trim().toLowerCase()===String(b).trim().toLowerCase();
 function ordered(l0){let l=l0;
   if(l0.items.some(x=>String(x).trim()===PH)){
-    const sw=secret&&secret.trim();const mp=x=>String(x).trim()===PH?sw:x;
+    const sw=(cfg.src&&cfg.src!=='off'&&secret)?secret.trim():'';const mp=x=>String(x).trim()===PH?sw:x;
     let items=l0.items.filter(x=>String(x).trim()===PH||!(sw&&same(x,sw))).map(mp).filter(Boolean);
     const fz=sw?sw:(String(l0.forced||'').trim()===PH?'':l0.forced);
     l=Object.assign({},l0,{items,forced:fz,above:l0.above&&mp(l0.above),below:l0.below&&mp(l0.below)});}
@@ -428,11 +428,11 @@ function renderNotes(){$('#notes').classList.toggle('dark',cfg.theme==='dark');
     r.innerHTML='<b>'+esc(l.title)+'</b><small><em>'+dayLabel(l)+'</em>'+esc(o.slice(0,3).map((t,k)=>(k+1)+'. '+t).join(' '))+'</small>';
     r.addEventListener('click',()=>openNote(i));c.appendChild(r);});
   $('#ncount').textContent=cfg.lists.length+(cfg.lists.length===1?' Nota':' Notas');}
-function openNotes(){renderNotes();$('#nNote').style.transform='translateX(100%)';$('#nList .scroll').scrollTop=0;show('notes');
+function openNotes(){dotNew=false;updDot();renderNotes();$('#nNote').style.transform='translateX(100%)';$('#nList .scroll').scrollTop=0;show('notes');
   const n=cfg.notesIcon,el=$('#notes');el.style.transformOrigin=(n.x*100)+'% '+(n.y*100)+'%';
   anim(el,[{transform:'scale(.16)',opacity:.2,borderRadius:'40px'},{transform:'scale(1)',opacity:1,borderRadius:'0px'}],380);}
 function closeNotes(){const n=cfg.notesIcon,el=$('#notes');el.style.transformOrigin=(n.x*100)+'% '+(n.y*100)+'%';
-  d1=null;d2=null;lockPass=false;setSecret(null);setPage(0,false);setBottom();
+  d1=null;d2=null;lockPass=false;setPage(0,false);setBottom();
   const a=anim(el,[{transform:'scale(1)',opacity:1},{transform:'scale(.16)',opacity:0}],320);const f=()=>hide('notes');if(a)a.onfinish=f;else f();}
 let curNote=-1;
 function openNote(i){curNote=i;const l=cfg.lists[i];const o=ordered(l);
@@ -461,7 +461,7 @@ function openSettings(){drag=null;setPage(page,false);fillMain();$('#sMain').sty
 function closeSettings(){const a=anim($('#settings'),[{transform:'translateY(0)'},{transform:'translateY(100%)'}],280);const f=()=>{hide('settings');if($('#notes').classList.contains('on')){renderNotes();if(curNote>=0)openNote(curNote);}};if(a)a.onfinish=f;else f();}
 $('#sDone').onclick=closeSettings;
 function dupCount(l){const s={},d=[];l.items.forEach(x=>{if(s[x])d.push(x);s[x]=1;});return d;}
-function fillMain(){$('#sVer').textContent='Versão 8 · tela '+screen.height+' · área '+innerHeight+(isStandalone?' · app':' · navegador');
+function fillMain(){$('#sVer').textContent='Versão 9 · tela '+screen.height+' · área '+innerHeight+(isStandalone?' · app':' · navegador');
   $('#sCurN').textContent=cfg.N;$('#sTheme').value=cfg.theme;$('#sLock').value=String(cfg.lock?1:0);
   $('#sSrc').value=cfg.src||'off';$('#sInj').value=cfg.injId||'';$('#sWk').value=cfg.wk||'';$('#sPr').value=cfg.prompt||'';$('#sTop').value=cfg.topic||'';$('#sTestR').textContent='';$('#sLast').textContent=lastInfo;srcRows();
   const b=$('#sLists');b.innerHTML='';
@@ -566,11 +566,11 @@ async function askAI(q){q=String(q||'').trim();if(!q)return'';const p=(cfg.promp
   const{r,d}=await fetchT(wkBase()+'/ai?q='+encodeURIComponent(q)+'&p='+encodeURIComponent(p),25000);
   if(!r.ok||d.error)throw new Error(d.error||('http '+r.status));return(d.answer||'').trim();}
 const hhmm=()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
-let lastInfo='—';
+let lastInfo=secret?('guardada: '+secret):'—';
 function setInfo(t){lastInfo=t;const e=$('#sLast');if(e)e.textContent=t;}
 function updDot(){const d=$('#sdot'),p=cfg.dot||{x:.5,y:.79};d.style.left=(p.x*100)+'%';d.style.top=(p.y*100)+'%';
-  d.classList.toggle('on',!!(secret&&cfg.src&&cfg.src!=='off'));}
-function setSecret(v){secret=v||null;updDot();
+  d.classList.toggle('on',!!(dotNew&&secret&&cfg.src&&cfg.src!=='off'));}
+function setSecret(v){secret=v||null;store.set('secret',secret);dotNew=!!secret;updDot();
   if(secret&&$('#notes').classList.contains('on')){renderNotes();if(curNote>=0){const o=ordered(cfg.lists[curNote]);
     $('#nItems').innerHTML=o.map((t,k)=>'<div>'+(k+1)+'. '+esc(t)+'</div>').join('');}}}
 let feedT=null,lastCount=null,busyAI=false,es=null,feedGen=0,tickNow=null;
