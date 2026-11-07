@@ -1,5 +1,5 @@
 /* Modo offline: abre na hora pela cópia guardada e atualiza em segundo plano. */
-const CACHE='listas-v6';
+const CACHE='listas-v7';
 const FILES=['./','./index.html','./apple-touch-icon.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});

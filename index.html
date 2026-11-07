@@ -103,6 +103,7 @@ textarea.items{width:100%;border:0;font-size:15px;font-family:inherit;resize:ver
 #mark .dot{position:absolute;width:40px;height:40px;margin:-20px 0 0 -20px;border:3px solid #ffd60a;border-radius:50%;pointer-events:none}
 #mark .zone{position:absolute;border:2px dashed #ffd60a;border-radius:12px;pointer-events:none;color:#ffd60a;font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;text-shadow:0 1px 3px #000}
 input[type=file]{display:none}
+.row.sx.hid{display:none}
 /* ---------- DOCK (fundo trocado) ---------- */
 #plat{position:absolute;left:2.74%;right:2.74%;top:86.96%;height:11.9%;border-radius:9.4vw;background:rgba(255,255,255,.26);
   -webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);display:none;pointer-events:none}
@@ -212,6 +213,17 @@ html.sa .hbar{display:none}
       <div class="box" style="margin-top:10px"><div class="row"><button class="btn" id="bNewList">+ Nova lista</button></div></div>
       <div class="note">Toque numa lista para editar, escolher o item forçado (e, se quiser, o item de cima e o de baixo) ou a data. Posição atual do item forçado: <b id="sCurN"></b>.</div>
 
+      <span class="st">Palavra secreta ($$$$)</span>
+      <div class="box">
+        <div class="row">Receber de<select id="sSrc"><option value="off">Desligado</option><option value="inject">Inject (+ IA)</option><option value="ntfy">ntfy (palavra pronta)</option></select></div>
+        <div class="row sx sinj">ID do Inject<input type="text" id="sInj" inputmode="numeric" style="flex:1" placeholder="13579"></div>
+        <div class="row sx sinj">Intermediário<input type="text" id="sWk" style="flex:1" placeholder="https://….workers.dev" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+        <div class="row sx sinj" style="display:block"><div style="font-size:14px;color:#6d6d72;margin-bottom:6px">Pergunta para a IA ({x} = o que a pessoa buscou; em branco = usa a busca direto)</div><textarea id="sPr" rows="3" style="width:100%;border:0;font-size:15px;font-family:inherit;resize:vertical;outline:none;line-height:1.4"></textarea></div>
+        <div class="row sx sntfy">Canal ntfy<input type="text" id="sTop" style="flex:1" placeholder="nome-secreto-123" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+        <div class="row sx sinj sntfy"><button class="btn" id="bTest">Testar agora</button><span class="sub" id="sTestR"></span></div>
+      </div>
+      <div class="note">Coloque <b>$$$$</b> como um item da lista e marque-o como forçado. Quando chega a palavra, ela aparece no lugar do $$$$ (na posição do número). Sem palavra, o $$$$ fica escondido. A palavra vale até você voltar para a tela 1.<br>Inject: o app olha a última busca a cada segundo; quando muda, pergunta à IA (pelo intermediário do Cloudflare) e guarda a resposta.</div>
+
       <span class="st">Tela de bloqueio</span>
       <div class="box">
         <div class="row">Abrir pela tela de bloqueio<select id="sLock"><option value="0">Desligada</option><option value="1">Ligada</option></select></div>
@@ -287,7 +299,7 @@ const store={get(k,d){try{const v=localStorage.getItem('lst_'+k);if(v!=null)retu
 let cfg=Object.assign({
   /* centros dos ícones 1 e 9 (frações da tela) */
   pad:[{x1:.382,y1:.517,x9:.84,y9:.761},{x1:.386,y1:.517,x9:.841,y9:.761}],
-  notesIcon:{x:.613,y:.396},theme:'light',N:25,lock:0,lists:DEF_LISTS},store.get('cfg',{}));
+  notesIcon:{x:.613,y:.396},theme:'light',N:25,lock:0,src:'off',injId:'13579',wk:'',topic:'',prompt:'Qual é o filme mais famoso do ator ou atriz {x}? Responda apenas com o título do filme como ele é conhecido no Brasil, sem aspas, sem ano e sem mais nada.',lists:DEF_LISTS},store.get('cfg',{}));
 let skin=store.get('skin',null); /* {wall, prints:[3]} enviados pelo usuário */
 function save(){store.set('cfg',cfg);}
 
@@ -348,7 +360,7 @@ function setPage(p,animate){const tr=$('#track');const to=-p*innerWidth;
 let lockPass=false; /* veio da senha: a 1ª passagem pelas telas não muda o número */
 function goTo(p){const old=page;
   if(p>old){ if(!lockPass){ if(old===0)d1=pend; if(old===1&&d1!=null){d2=pend;cfg.N=(d1*10+d2)||100;save();} } }
-  else if(p<old){ if(p===0){d1=null;d2=null;lockPass=false;} if(p===1&&!lockPass){d2=null;} }
+  else if(p<old){ if(p===0){d1=null;d2=null;lockPass=false;secret=null;} if(p===1&&!lockPass){d2=null;} }
   setPage(p,true);}
 let drag=null,pend=0,multi=false;
 const home=$('#home');
@@ -390,7 +402,14 @@ function noteDate(l){const d=new Date();d.setDate(d.getDate()-(+l.days||1));cons
 function dayLabel(l){const n=+l.days||1;if(n===1)return'Ontem';const d=noteDate(l);const w=new Intl.DateTimeFormat('pt-BR',{weekday:'long'}).format(d);
   return w.split('-').map(s=>s.charAt(0).toUpperCase()+s.slice(1)).join('-');}
 function fullDate(l){const d=noteDate(l);return String(d.getDate()).padStart(2,'0')+' '+MES[d.getMonth()]+' '+d.getFullYear()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
-function ordered(l){const it=l.items.filter(x=>x!=null&&String(x).trim()!=='').map(String);
+const PH='$$$$';let secret=null; /* palavra recebida (vale até voltar à tela 1) */
+const same=(a,b)=>String(a).trim().toLowerCase()===String(b).trim().toLowerCase();
+function ordered(l0){let l=l0;
+  if(l0.items.some(x=>String(x).trim()===PH)){
+    const sw=secret&&secret.trim();const mp=x=>String(x).trim()===PH?sw:x;
+    let items=l0.items.filter(x=>String(x).trim()===PH||!(sw&&same(x,sw))).map(mp).filter(Boolean);
+    l=Object.assign({},l0,{items,forced:l0.forced&&mp(l0.forced),above:l0.above&&mp(l0.above),below:l0.below&&mp(l0.below)});}
+  const it=l.items.filter(x=>x!=null&&String(x).trim()!=='').map(String);
   if(!l.forced||!it.includes(l.forced))return it;const L=it.length;const N=Math.min(Math.max(1,+cfg.N||1),L);
   const place={};place[N]=l.forced;
   if(l.above&&l.above!==l.forced&&it.includes(l.above)&&N>1)place[N-1]=l.above;
@@ -408,7 +427,7 @@ function openNotes(){renderNotes();$('#nNote').style.transform='translateX(100%)
   const n=cfg.notesIcon,el=$('#notes');el.style.transformOrigin=(n.x*100)+'% '+(n.y*100)+'%';
   anim(el,[{transform:'scale(.16)',opacity:.2,borderRadius:'40px'},{transform:'scale(1)',opacity:1,borderRadius:'0px'}],380);}
 function closeNotes(){const n=cfg.notesIcon,el=$('#notes');el.style.transformOrigin=(n.x*100)+'% '+(n.y*100)+'%';
-  d1=null;d2=null;lockPass=false;setPage(0,false);setBottom();
+  d1=null;d2=null;lockPass=false;secret=null;setPage(0,false);setBottom();
   const a=anim(el,[{transform:'scale(1)',opacity:1},{transform:'scale(.16)',opacity:0}],320);const f=()=>hide('notes');if(a)a.onfinish=f;else f();}
 let curNote=-1;
 function openNote(i){curNote=i;const l=cfg.lists[i];const o=ordered(l);
@@ -437,8 +456,9 @@ function openSettings(){drag=null;setPage(page,false);fillMain();$('#sMain').sty
 function closeSettings(){const a=anim($('#settings'),[{transform:'translateY(0)'},{transform:'translateY(100%)'}],280);const f=()=>{hide('settings');if($('#notes').classList.contains('on')){renderNotes();if(curNote>=0)openNote(curNote);}};if(a)a.onfinish=f;else f();}
 $('#sDone').onclick=closeSettings;
 function dupCount(l){const s={},d=[];l.items.forEach(x=>{if(s[x])d.push(x);s[x]=1;});return d;}
-function fillMain(){$('#sVer').textContent='Versão 6 · tela '+screen.height+' · área '+innerHeight+(isStandalone?' · app':' · navegador');
+function fillMain(){$('#sVer').textContent='Versão 7 · tela '+screen.height+' · área '+innerHeight+(isStandalone?' · app':' · navegador');
   $('#sCurN').textContent=cfg.N;$('#sTheme').value=cfg.theme;$('#sLock').value=String(cfg.lock?1:0);
+  $('#sSrc').value=cfg.src||'off';$('#sInj').value=cfg.injId||'';$('#sWk').value=cfg.wk||'';$('#sPr').value=cfg.prompt||'';$('#sTop').value=cfg.topic||'';$('#sTestR').textContent='';srcRows();
   const b=$('#sLists');b.innerHTML='';
   cfg.lists.forEach((l,i)=>{const r=document.createElement('div');r.className='row link';const d=dupCount(l);
     r.innerHTML='<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(l.title)+'</span><span class="sub">'+(d.length?'⚠︎ repetidos · ':'')+esc(l.forced||'—')+'</span>';
@@ -446,6 +466,16 @@ function fillMain(){$('#sVer').textContent='Versão 6 · tela '+screen.height+' 
   if(!cfg.lists.length)b.innerHTML='<div class="row"><span style="color:#8e8e93">Nenhuma lista</span></div>';}
 $('#sTheme').onchange=e=>{cfg.theme=e.target.value;save();};
 $('#sLock').onchange=e=>{cfg.lock=+e.target.value;save();};
+function srcRows(){const v=cfg.src;$$('#settings .sx').forEach(r=>{r.classList.toggle('hid',!((v==='inject'&&r.classList.contains('sinj'))||(v==='ntfy'&&r.classList.contains('sntfy'))));});}
+$('#sSrc').onchange=e=>{cfg.src=e.target.value;save();srcRows();startFeed();};
+$('#sInj').oninput=e=>{cfg.injId=e.target.value.replace(/\D/g,'');save();startFeed();};
+$('#sWk').oninput=e=>{cfg.wk=e.target.value.trim();save();startFeed();};
+$('#sPr').oninput=e=>{cfg.prompt=e.target.value;save();};
+$('#sTop').oninput=e=>{cfg.topic=e.target.value.trim();save();startFeed();};
+$('#bTest').onclick=async()=>{const r=$('#sTestR');r.textContent='testando…';
+  try{if(cfg.src==='ntfy'){r.textContent=secret?('última: '+secret):(es&&es.readyState===1?'conectado ✓ (mande uma palavra)':'sem conexão');return;}
+    const d=await injGet();const a=await askAI(d.value);r.textContent=d.value+' → '+(a||'?');}
+  catch(e){r.textContent='erro: '+(e.message||e);}};
 $('#bNewList').onclick=()=>{cfg.lists.push({title:'100 - NOVA LISTA',items:[],forced:'',days:1,time:'12:00'});save();openList(cfg.lists.length-1);};
 /* --- lista --- */
 let li=-1;
@@ -517,6 +547,31 @@ function finishMark(){setTimeout(()=>{hide('mark');setPage(0,false);d1=null;d2=n
 $('#mark').addEventListener('click',e=>{if(markStep==='z0'){e.stopImmediatePropagation();$$('#mark .zone').forEach(z=>z.remove());setPage(1,false);drawZones(1);
   $('#markMsg').textContent='Tela 2: áreas do teclado. Toque para fechar';markStep='z';}},true);
 
+/* ---------- palavra secreta: Inject (+IA) ou ntfy ---------- */
+const wkBase=()=>{let w=(cfg.wk||'').trim();if(w&&!/^https?:\/\//.test(w))w='https://'+w;return w.replace(/\/+$/,'');};
+async function injGet(){const w=wkBase();if(!w)throw new Error('falta o intermediário');
+  const r=await fetch(w+'/inject?id='+encodeURIComponent(cfg.injId||'')+'&_='+Date.now(),{cache:'no-store'});const d=await r.json();
+  if(!r.ok||d.error)throw new Error(d.error||('http '+r.status));return d;}
+async function askAI(q){q=String(q||'').trim();if(!q)return'';const p=(cfg.prompt||'').trim();if(!p)return q;
+  const r=await fetch(wkBase()+'/ai?q='+encodeURIComponent(q)+'&p='+encodeURIComponent(p),{cache:'no-store'});const d=await r.json();
+  if(!r.ok||d.error)throw new Error(d.error||('http '+r.status));return(d.answer||'').trim();}
+let feedT=null,lastCount=null,busyAI=false,es=null,feedGen=0;
+function stopFeed(){clearTimeout(feedT);feedT=null;if(es){try{es.close();}catch(_){}es=null;}feedGen++;}
+function startFeed(){stopFeed();lastCount=null;const g=feedGen;
+  if(cfg.src==='inject'&&cfg.injId&&cfg.wk){
+    const tickF=async()=>{if(g!==feedGen)return;
+      if(!document.hidden&&!busyAI){try{const d=await injGet();if(g!==feedGen)return;
+        if(lastCount===null)lastCount=d.count; /* ignora a busca antiga */
+        else if(d.count!==lastCount){lastCount=d.count;busyAI=true;
+          try{const a=await askAI(d.value);if(a&&g===feedGen)secret=a;}catch(_){}busyAI=false;}}catch(_){}}
+      feedT=setTimeout(tickF,1000);};
+    tickF();}
+  else if(cfg.src==='ntfy'&&cfg.topic&&window.EventSource){
+    try{es=new EventSource('https://ntfy.sh/'+encodeURIComponent(cfg.topic)+'/sse');
+      es.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.event==='message'&&m.message&&m.message.trim())secret=m.message.trim();}catch(_){}};}catch(_){}}}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&cfg.src==='ntfy'&&(!es||es.readyState===2))startFeed();});
+startFeed();
+
 /* ---------- tela de bloqueio + senha ---------- */
 const fT=new Intl.DateTimeFormat('pt-BR',{hour:'2-digit',minute:'2-digit',hour12:false}),fD=new Intl.DateTimeFormat('pt-BR',{weekday:'long',day:'numeric',month:'long'});
 function tick(){const d=new Date();$('#lkTime').textContent=fT.format(d);$('#lkDate').textContent=fD.format(d);}tick();setInterval(tick,1000);
@@ -555,7 +610,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&cfg.lock&&
 
 if(location.hash==='#config')openSettings();
 if('serviceWorker' in navigator&&location.protocol==='https:'){addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});}
-window.__dbg=()=>({page,d1,d2,N:cfg.N,lockPass});
+window.__dbg=()=>({page,d1,d2,N:cfg.N,lockPass,secret,lastCount});
 })();
 </script>
 </body>
