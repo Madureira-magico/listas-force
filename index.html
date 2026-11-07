@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Listas">
 <meta name="theme-color" content="#000000">
 <title>Listas</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
 :root{--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);--y:#e0a30b}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -224,15 +225,6 @@ html.sa .hbar{display:none}
       </div>
       <div class="note">Escolha uma imagem da galeria: ela é ajustada sozinha ao tamanho da tela (centralizada, cortando só as sobras) e vale para as telas de início e para a tela de bloqueio. Os ícones continuam os mesmos.</div>
 
-      <span class="st">Teclado disfarçado</span>
-      <div class="box">
-        <div class="row link" id="bMark0"><span>Marcar ícones 1 e 9 da tela 1</span></div>
-        <div class="row link" id="bMark1"><span>Marcar ícones 1 e 9 da tela 2</span></div>
-        <div class="row link" id="bMarkN"><span>Marcar o ícone do Notas (tela 3)</span></div>
-        <div class="row link" id="bShowZones"><span>Ver as áreas marcadas</span></div>
-      </div>
-      <div class="note">Em cada tela, os 9 ícones em quadrado valem 1 a 9 (como um teclado de telefone). Marque o centro do ícone 1 (em cima, à esquerda) e do 9 (embaixo, à direita) e o app calcula os outros. Começar o arrasto de página fora deles vale 0. 0 e 0 = 100.</div>
-
       <span class="st">Notas</span>
       <div class="box">
         <div class="row">Tema<select id="sTheme"><option value="light">Claro</option><option value="dark">Escuro</option></select></div>
@@ -445,7 +437,7 @@ function openSettings(){drag=null;setPage(page,false);fillMain();$('#sMain').sty
 function closeSettings(){const a=anim($('#settings'),[{transform:'translateY(0)'},{transform:'translateY(100%)'}],280);const f=()=>{hide('settings');if($('#notes').classList.contains('on')){renderNotes();if(curNote>=0)openNote(curNote);}};if(a)a.onfinish=f;else f();}
 $('#sDone').onclick=closeSettings;
 function dupCount(l){const s={},d=[];l.items.forEach(x=>{if(s[x])d.push(x);s[x]=1;});return d;}
-function fillMain(){$('#sVer').textContent='Versão 5 · tela '+screen.height+' · área '+innerHeight+(isStandalone?' · app':' · navegador');
+function fillMain(){$('#sVer').textContent='Versão 6 · tela '+screen.height+' · área '+innerHeight+(isStandalone?' · app':' · navegador');
   $('#sCurN').textContent=cfg.N;$('#sTheme').value=cfg.theme;$('#sLock').value=String(cfg.lock?1:0);
   const b=$('#sLists');b.innerHTML='';
   cfg.lists.forEach((l,i)=>{const r=document.createElement('div');r.className='row link';const d=dupCount(l);
@@ -521,9 +513,7 @@ function drawZones(p){const c=cfg.pad[p],W=innerWidth,H=innerHeight,dx=(c.x9-c.x
   for(let r=0;r<3;r++)for(let k=0;k<3;k++){const z=document.createElement('div');z.className='zone';const w=Math.abs(dx)*.92,h=Math.abs(dy)*.92;
     z.style.left=(c.x1*W+k*dx-w/2)+'px';z.style.top=(c.y1*H+r*dy-h/2)+'px';z.style.width=w+'px';z.style.height=h+'px';z.textContent=r*3+k+1;$('#mark').appendChild(z);}}
 function finishMark(){setTimeout(()=>{hide('mark');setPage(0,false);d1=null;d2=null;openSettings();},markStep==='n'?500:0);}
-$('#bMark0').onclick=()=>startMark('0');$('#bMark1').onclick=()=>startMark('1');$('#bMarkN').onclick=()=>startMark('n');
-$('#bShowZones').onclick=()=>{startMark('z');$('#markMsg').textContent='Tela 1: áreas do teclado. Toque para ver a tela 2';drawZones(0);
-  markStep='z0';};
+
 $('#mark').addEventListener('click',e=>{if(markStep==='z0'){e.stopImmediatePropagation();$$('#mark .zone').forEach(z=>z.remove());setPage(1,false);drawZones(1);
   $('#markMsg').textContent='Tela 2: áreas do teclado. Toque para fechar';markStep='z';}},true);
 
