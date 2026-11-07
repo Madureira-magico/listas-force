@@ -104,6 +104,8 @@ textarea.items{width:100%;border:0;font-size:15px;font-family:inherit;resize:ver
 #mark .zone{position:absolute;border:2px dashed #ffd60a;border-radius:12px;pointer-events:none;color:#ffd60a;font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;text-shadow:0 1px 3px #000}
 input[type=file]{display:none}
 .row.sx.hid{display:none}
+#sdot{position:absolute;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:rgba(255,255,255,.8);box-shadow:0 0 2px rgba(0,0,0,.35);display:none;pointer-events:none}
+#sdot.on{display:block}
 /* ---------- DOCK (fundo trocado) ---------- */
 #plat{position:absolute;left:2.74%;right:2.74%;top:86.96%;height:11.9%;border-radius:9.4vw;background:rgba(255,255,255,.26);
   -webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);display:none;pointer-events:none}
@@ -150,7 +152,7 @@ html.sa .hbar{display:none}
 <!-- TELAS DE INÍCIO -->
 <div id="home" class="screen on">
   <div id="wall"></div><div id="plat"></div><div id="dockI"></div>
-  <div id="track"><div class="pg" id="pg0"></div><div class="pg" id="pg1"></div><div class="pg" id="pg2"></div></div>
+  <div id="track"><div class="pg" id="pg0"><i id="sdot"></i></div><div class="pg" id="pg1"></div><div class="pg" id="pg2"></div></div>
   <div id="dots"><i class="a"></i><i></i><i></i></div>
 </div>
 
@@ -221,8 +223,10 @@ html.sa .hbar{display:none}
         <div class="row sx sinj" style="display:block"><div style="font-size:14px;color:#6d6d72;margin-bottom:6px">Pergunta para a IA ({x} = o que a pessoa buscou; em branco = usa a busca direto)</div><textarea id="sPr" rows="3" style="width:100%;border:0;font-size:15px;font-family:inherit;resize:vertical;outline:none;line-height:1.4"></textarea></div>
         <div class="row sx sntfy">Canal ntfy<input type="text" id="sTop" style="flex:1" placeholder="nome-secreto-123" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
         <div class="row sx sinj sntfy"><button class="btn" id="bTest">Testar agora</button><span class="sub" id="sTestR"></span></div>
+        <div class="row sx sinj sntfy"><span>Última</span><span class="sub" id="sLast" style="max-width:70%">—</span></div>
+        <div class="row sx sinj sntfy link" id="bDot"><span>Local do ponto de aviso (tela 1)</span></div>
       </div>
-      <div class="note">Coloque <b>$$$$</b> como um item da lista e marque-o como forçado. Quando chega a palavra, ela aparece no lugar do $$$$ (na posição do número). Sem palavra, o $$$$ fica escondido. A palavra vale até você voltar para a tela 1.<br>Inject: o app olha a última busca a cada segundo; quando muda, pergunta à IA (pelo intermediário do Cloudflare) e guarda a resposta.</div>
+      <div class="note">Coloque <b>$$$$</b> como um item da lista e marque-o como forçado. Quando chega a palavra, ela aparece no lugar do $$$$ (na posição do número). Sem palavra, o $$$$ fica escondido. A palavra vale até você voltar para a tela 1.<br>Quando a palavra chega, aparece um pontinho discreto na tela 1, no local que você escolher (só com "Receber de" ligado).<br>Inject: o app olha a última busca a cada segundo; quando muda, pergunta à IA (pelo intermediário do Cloudflare) e guarda a resposta.</div>
 
       <span class="st">Tela de bloqueio</span>
       <div class="box">
@@ -299,7 +303,7 @@ const store={get(k,d){try{const v=localStorage.getItem('lst_'+k);if(v!=null)retu
 let cfg=Object.assign({
   /* centros dos ícones 1 e 9 (frações da tela) */
   pad:[{x1:.382,y1:.517,x9:.84,y9:.761},{x1:.386,y1:.517,x9:.841,y9:.761}],
-  notesIcon:{x:.613,y:.396},theme:'light',N:25,lock:0,src:'off',injId:'13579',wk:'',topic:'',prompt:'Qual é o filme mais famoso do ator ou atriz {x}? Responda apenas com o título do filme como ele é conhecido no Brasil, sem aspas, sem ano e sem mais nada.',lists:DEF_LISTS},store.get('cfg',{}));
+  notesIcon:{x:.613,y:.396},theme:'light',N:25,lock:0,src:'off',dot:{x:.5,y:.79},injId:'13579',wk:'',topic:'',prompt:'Qual é o filme mais famoso do ator ou atriz {x}? Responda apenas com o título do filme como ele é conhecido no Brasil, sem aspas, sem ano e sem mais nada.',lists:DEF_LISTS},store.get('cfg',{}));
 let skin=store.get('skin',null); /* {wall, prints:[3]} enviados pelo usuário */
 function save(){store.set('cfg',cfg);}
 
@@ -360,7 +364,7 @@ function setPage(p,animate){const tr=$('#track');const to=-p*innerWidth;
 let lockPass=false; /* veio da senha: a 1ª passagem pelas telas não muda o número */
 function goTo(p){const old=page;
   if(p>old){ if(!lockPass){ if(old===0)d1=pend; if(old===1&&d1!=null){d2=pend;cfg.N=(d1*10+d2)||100;save();} } }
-  else if(p<old){ if(p===0){d1=null;d2=null;lockPass=false;secret=null;} if(p===1&&!lockPass){d2=null;} }
+  else if(p<old){ if(p===0){d1=null;d2=null;lockPass=false;setSecret(null);} if(p===1&&!lockPass){d2=null;} }
   setPage(p,true);}
 let drag=null,pend=0,multi=false;
 const home=$('#home');
@@ -408,7 +412,8 @@ function ordered(l0){let l=l0;
   if(l0.items.some(x=>String(x).trim()===PH)){
     const sw=secret&&secret.trim();const mp=x=>String(x).trim()===PH?sw:x;
     let items=l0.items.filter(x=>String(x).trim()===PH||!(sw&&same(x,sw))).map(mp).filter(Boolean);
-    l=Object.assign({},l0,{items,forced:l0.forced&&mp(l0.forced),above:l0.above&&mp(l0.above),below:l0.below&&mp(l0.below)});}
+    const fz=sw?sw:(String(l0.forced||'').trim()===PH?'':l0.forced);
+    l=Object.assign({},l0,{items,forced:fz,above:l0.above&&mp(l0.above),below:l0.below&&mp(l0.below)});}
   const it=l.items.filter(x=>x!=null&&String(x).trim()!=='').map(String);
   if(!l.forced||!it.includes(l.forced))return it;const L=it.length;const N=Math.min(Math.max(1,+cfg.N||1),L);
   const place={};place[N]=l.forced;
@@ -427,7 +432,7 @@ function openNotes(){renderNotes();$('#nNote').style.transform='translateX(100%)
   const n=cfg.notesIcon,el=$('#notes');el.style.transformOrigin=(n.x*100)+'% '+(n.y*100)+'%';
   anim(el,[{transform:'scale(.16)',opacity:.2,borderRadius:'40px'},{transform:'scale(1)',opacity:1,borderRadius:'0px'}],380);}
 function closeNotes(){const n=cfg.notesIcon,el=$('#notes');el.style.transformOrigin=(n.x*100)+'% '+(n.y*100)+'%';
-  d1=null;d2=null;lockPass=false;secret=null;setPage(0,false);setBottom();
+  d1=null;d2=null;lockPass=false;setSecret(null);setPage(0,false);setBottom();
   const a=anim(el,[{transform:'scale(1)',opacity:1},{transform:'scale(.16)',opacity:0}],320);const f=()=>hide('notes');if(a)a.onfinish=f;else f();}
 let curNote=-1;
 function openNote(i){curNote=i;const l=cfg.lists[i];const o=ordered(l);
@@ -456,9 +461,9 @@ function openSettings(){drag=null;setPage(page,false);fillMain();$('#sMain').sty
 function closeSettings(){const a=anim($('#settings'),[{transform:'translateY(0)'},{transform:'translateY(100%)'}],280);const f=()=>{hide('settings');if($('#notes').classList.contains('on')){renderNotes();if(curNote>=0)openNote(curNote);}};if(a)a.onfinish=f;else f();}
 $('#sDone').onclick=closeSettings;
 function dupCount(l){const s={},d=[];l.items.forEach(x=>{if(s[x])d.push(x);s[x]=1;});return d;}
-function fillMain(){$('#sVer').textContent='Versão 7 · tela '+screen.height+' · área '+innerHeight+(isStandalone?' · app':' · navegador');
+function fillMain(){$('#sVer').textContent='Versão 8 · tela '+screen.height+' · área '+innerHeight+(isStandalone?' · app':' · navegador');
   $('#sCurN').textContent=cfg.N;$('#sTheme').value=cfg.theme;$('#sLock').value=String(cfg.lock?1:0);
-  $('#sSrc').value=cfg.src||'off';$('#sInj').value=cfg.injId||'';$('#sWk').value=cfg.wk||'';$('#sPr').value=cfg.prompt||'';$('#sTop').value=cfg.topic||'';$('#sTestR').textContent='';srcRows();
+  $('#sSrc').value=cfg.src||'off';$('#sInj').value=cfg.injId||'';$('#sWk').value=cfg.wk||'';$('#sPr').value=cfg.prompt||'';$('#sTop').value=cfg.topic||'';$('#sTestR').textContent='';$('#sLast').textContent=lastInfo;srcRows();
   const b=$('#sLists');b.innerHTML='';
   cfg.lists.forEach((l,i)=>{const r=document.createElement('div');r.className='row link';const d=dupCount(l);
     r.innerHTML='<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(l.title)+'</span><span class="sub">'+(d.length?'⚠︎ repetidos · ':'')+esc(l.forced||'—')+'</span>';
@@ -467,14 +472,14 @@ function fillMain(){$('#sVer').textContent='Versão 7 · tela '+screen.height+' 
 $('#sTheme').onchange=e=>{cfg.theme=e.target.value;save();};
 $('#sLock').onchange=e=>{cfg.lock=+e.target.value;save();};
 function srcRows(){const v=cfg.src;$$('#settings .sx').forEach(r=>{r.classList.toggle('hid',!((v==='inject'&&r.classList.contains('sinj'))||(v==='ntfy'&&r.classList.contains('sntfy'))));});}
-$('#sSrc').onchange=e=>{cfg.src=e.target.value;save();srcRows();startFeed();};
+$('#sSrc').onchange=e=>{cfg.src=e.target.value;save();srcRows();startFeed();updDot();};
 $('#sInj').oninput=e=>{cfg.injId=e.target.value.replace(/\D/g,'');save();startFeed();};
 $('#sWk').oninput=e=>{cfg.wk=e.target.value.trim();save();startFeed();};
 $('#sPr').oninput=e=>{cfg.prompt=e.target.value;save();};
 $('#sTop').oninput=e=>{cfg.topic=e.target.value.trim();save();startFeed();};
 $('#bTest').onclick=async()=>{const r=$('#sTestR');r.textContent='testando…';
   try{if(cfg.src==='ntfy'){r.textContent=secret?('última: '+secret):(es&&es.readyState===1?'conectado ✓ (mande uma palavra)':'sem conexão');return;}
-    const d=await injGet();const a=await askAI(d.value);r.textContent=d.value+' → '+(a||'?');}
+    const d=await injGet();r.textContent=d.value+' → …';const a=await askAI(d.value);r.textContent=d.value+' → '+(a||'?');}
   catch(e){r.textContent='erro: '+(e.message||e);}};
 $('#bNewList').onclick=()=>{cfg.lists.push({title:'100 - NOVA LISTA',items:[],forced:'',days:1,time:'12:00'});save();openList(cfg.lists.length-1);};
 /* --- lista --- */
@@ -530,46 +535,64 @@ function alertMsg(t){$('#sVer').textContent=t;}
 $('#bPagesReset').onclick=()=>{skin=null;store.set('skin',null);applyPages();alertMsg('Fundo original ✓');};
 /* --- marcar áreas --- */
 let markStep=null,markTmp=null;
-function startMark(what){markStep=what;markTmp={};hide('settings');show('home');setPage(what==='n'?2:+what,false);
+function startMark(what){markStep=what;markTmp={};hide('settings');show('home');setPage(what==='n'?2:(what==='d'?0:+what),false);
   $$('#mark .dot,#mark .zone').forEach(x=>x.remove());
-  $('#markMsg').textContent=what==='n'?'Toque no centro do ícone do Notas':'Toque no centro do ícone que vale 1 (em cima, à esquerda)';show('mark');}
+  $('#markMsg').textContent=what==='n'?'Toque no centro do ícone do Notas':what==='d'?'Toque onde o pontinho de aviso deve aparecer':'Toque no centro do ícone que vale 1 (em cima, à esquerda)';show('mark');}
 $('#mark').addEventListener('click',e=>{const x=e.clientX/innerWidth,y=e.clientY/innerHeight;
   const dot=document.createElement('div');dot.className='dot';dot.style.left=e.clientX+'px';dot.style.top=e.clientY+'px';$('#mark').appendChild(dot);
   if(markStep==='n'){cfg.notesIcon={x,y};save();return finishMark();}
+  if(markStep==='d'){cfg.dot={x,y};save();updDot();return finishMark();}
   if(markStep==='z')return finishMark();
   if(markTmp.x1==null){markTmp.x1=x;markTmp.y1=y;$('#markMsg').textContent='Agora toque no centro do ícone que vale 9 (embaixo, à direita)';return;}
   cfg.pad[+markStep]={x1:markTmp.x1,y1:markTmp.y1,x9:x,y9:y};save();drawZones(+markStep);setTimeout(finishMark,900);});
 function drawZones(p){const c=cfg.pad[p],W=innerWidth,H=innerHeight,dx=(c.x9-c.x1)*W/2,dy=(c.y9-c.y1)*H/2;
   for(let r=0;r<3;r++)for(let k=0;k<3;k++){const z=document.createElement('div');z.className='zone';const w=Math.abs(dx)*.92,h=Math.abs(dy)*.92;
     z.style.left=(c.x1*W+k*dx-w/2)+'px';z.style.top=(c.y1*H+r*dy-h/2)+'px';z.style.width=w+'px';z.style.height=h+'px';z.textContent=r*3+k+1;$('#mark').appendChild(z);}}
-function finishMark(){setTimeout(()=>{hide('mark');setPage(0,false);d1=null;d2=null;openSettings();},markStep==='n'?500:0);}
+function finishMark(){setTimeout(()=>{hide('mark');setPage(0,false);d1=null;d2=null;openSettings();},(markStep==='n'||markStep==='d')?500:0);}
+$('#bDot').onclick=()=>startMark('d');
 
 $('#mark').addEventListener('click',e=>{if(markStep==='z0'){e.stopImmediatePropagation();$$('#mark .zone').forEach(z=>z.remove());setPage(1,false);drawZones(1);
   $('#markMsg').textContent='Tela 2: áreas do teclado. Toque para fechar';markStep='z';}},true);
 
 /* ---------- palavra secreta: Inject (+IA) ou ntfy ---------- */
 const wkBase=()=>{let w=(cfg.wk||'').trim();if(w&&!/^https?:\/\//.test(w))w='https://'+w;return w.replace(/\/+$/,'');};
+function fetchT(url,ms){const ac=window.AbortController?new AbortController():null;const t=ac?setTimeout(()=>ac.abort(),ms):0;
+  return fetch(url,{cache:'no-store',signal:ac?ac.signal:undefined}).then(r=>r.json().then(d=>({r,d}))).finally(()=>clearTimeout(t))
+    .catch(e=>{throw new Error(e&&e.name==='AbortError'?'demorou demais':(e.message||'sem conexão'));});}
 async function injGet(){const w=wkBase();if(!w)throw new Error('falta o intermediário');
-  const r=await fetch(w+'/inject?id='+encodeURIComponent(cfg.injId||'')+'&_='+Date.now(),{cache:'no-store'});const d=await r.json();
+  const{r,d}=await fetchT(w+'/inject?id='+encodeURIComponent(cfg.injId||'')+'&_='+Date.now(),8000);
   if(!r.ok||d.error)throw new Error(d.error||('http '+r.status));return d;}
 async function askAI(q){q=String(q||'').trim();if(!q)return'';const p=(cfg.prompt||'').trim();if(!p)return q;
-  const r=await fetch(wkBase()+'/ai?q='+encodeURIComponent(q)+'&p='+encodeURIComponent(p),{cache:'no-store'});const d=await r.json();
+  const{r,d}=await fetchT(wkBase()+'/ai?q='+encodeURIComponent(q)+'&p='+encodeURIComponent(p),25000);
   if(!r.ok||d.error)throw new Error(d.error||('http '+r.status));return(d.answer||'').trim();}
-let feedT=null,lastCount=null,busyAI=false,es=null,feedGen=0;
-function stopFeed(){clearTimeout(feedT);feedT=null;if(es){try{es.close();}catch(_){}es=null;}feedGen++;}
-function startFeed(){stopFeed();lastCount=null;const g=feedGen;
+const hhmm=()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
+let lastInfo='—';
+function setInfo(t){lastInfo=t;const e=$('#sLast');if(e)e.textContent=t;}
+function updDot(){const d=$('#sdot'),p=cfg.dot||{x:.5,y:.79};d.style.left=(p.x*100)+'%';d.style.top=(p.y*100)+'%';
+  d.classList.toggle('on',!!(secret&&cfg.src&&cfg.src!=='off'));}
+function setSecret(v){secret=v||null;updDot();
+  if(secret&&$('#notes').classList.contains('on')){renderNotes();if(curNote>=0){const o=ordered(cfg.lists[curNote]);
+    $('#nItems').innerHTML=o.map((t,k)=>'<div>'+(k+1)+'. '+esc(t)+'</div>').join('');}}}
+let feedT=null,lastCount=null,busyAI=false,es=null,feedGen=0,tickNow=null;
+function stopFeed(){clearTimeout(feedT);feedT=null;tickNow=null;if(es){try{es.close();}catch(_){}es=null;}feedGen++;busyAI=false;}
+function startFeed(){stopFeed();const g=feedGen;updDot();
   if(cfg.src==='inject'&&cfg.injId&&cfg.wk){
-    const tickF=async()=>{if(g!==feedGen)return;
+    const key='injLast_'+cfg.injId;lastCount=store.get(key,null);
+    const tickF=async()=>{if(g!==feedGen)return;clearTimeout(feedT);
       if(!document.hidden&&!busyAI){try{const d=await injGet();if(g!==feedGen)return;
-        if(lastCount===null)lastCount=d.count; /* ignora a busca antiga */
-        else if(d.count!==lastCount){lastCount=d.count;busyAI=true;
-          try{const a=await askAI(d.value);if(a&&g===feedGen)secret=a;}catch(_){}busyAI=false;}}catch(_){}}
-      feedT=setTimeout(tickF,1000);};
-    tickF();}
+        if(lastCount===null){lastCount=d.count;store.set(key,d.count);} /* primeira vez: ignora a busca antiga */
+        else if(d.count!==lastCount){lastCount=d.count;store.set(key,d.count);busyAI=true;setInfo(d.value+' → …');
+          try{const a=await askAI(d.value);if(g===feedGen){if(a){setSecret(a);setInfo(d.value+' → '+a+' ('+hhmm()+')');}else setInfo(d.value+' → sem resposta');}}
+          catch(e){if(g===feedGen)setInfo(d.value+' → erro: '+(e.message||e));}
+          busyAI=false;}}catch(_){}}
+      if(g===feedGen)feedT=setTimeout(tickF,1000);};
+    tickNow=tickF;tickF();}
   else if(cfg.src==='ntfy'&&cfg.topic&&window.EventSource){
     try{es=new EventSource('https://ntfy.sh/'+encodeURIComponent(cfg.topic)+'/sse');
-      es.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.event==='message'&&m.message&&m.message.trim())secret=m.message.trim();}catch(_){}};}catch(_){}}}
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&cfg.src==='ntfy'&&(!es||es.readyState===2))startFeed();});
+      es.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.event==='message'&&m.message&&m.message.trim()){setSecret(m.message.trim());setInfo(m.message.trim()+' ('+hhmm()+')');}}catch(_){}};}catch(_){}}}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)return;
+  if(cfg.src==='ntfy'&&(!es||es.readyState===2))startFeed();
+  else if(cfg.src==='inject'&&tickNow&&!busyAI)tickNow();});
 startFeed();
 
 /* ---------- tela de bloqueio + senha ---------- */
