@@ -103,7 +103,14 @@ textarea.items{width:100%;border:0;font-size:15px;font-family:inherit;resize:ver
 #mark .dot{position:absolute;width:40px;height:40px;margin:-20px 0 0 -20px;border:3px solid #ffd60a;border-radius:50%;pointer-events:none}
 #mark .zone{position:absolute;border:2px dashed #ffd60a;border-radius:12px;pointer-events:none;color:#ffd60a;font-weight:800;font-size:20px;display:flex;align-items:center;justify-content:center;text-shadow:0 1px 3px #000}
 input[type=file]{display:none}
-.row.sx.hid{display:none}
+.row.sx.hid{display:none!important}
+#sLists .row .sub{max-width:38%}
+.sw{position:relative;flex:none;width:46px;height:28px;margin-right:4px}
+.sw input{position:absolute;opacity:0;width:100%;height:100%;margin:0;z-index:1}
+.sw i{position:absolute;inset:0;border-radius:14px;background:#e3e3e8;transition:background .2s}
+.sw i:after{content:"";position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2);transition:transform .2s}
+.sw input:checked+i{background:#34c759}
+.sw input:checked+i:after{transform:translateX(18px)}
 #sdot{position:absolute;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:#30d158;box-shadow:0 0 2px rgba(0,0,0,.35);display:none;pointer-events:none}
 #sdot.on{display:block}
 /* ---------- DOCK (fundo trocado) ---------- */
@@ -213,7 +220,7 @@ html.sa .hbar{display:none}
       <span class="st">Listas no Notas</span>
       <div class="box" id="sLists"></div>
       <div class="box" style="margin-top:10px"><div class="row"><button class="btn" id="bNewList">+ Nova lista</button></div></div>
-      <div class="note">Toque numa lista para editar, escolher o item forçado (e, se quiser, o item de cima e o de baixo) ou a data. Posição atual do item forçado: <b id="sCurN"></b>.</div>
+      <div class="note">A chave verde mostra ou esconde a lista no Notas (escondida continua salva). Toque no nome para editar, escolher o item forçado (e, se quiser, o item de cima e o de baixo) ou a data. Posição atual do item forçado: <b id="sCurN"></b>.</div>
 
       <span class="st">Palavra secreta ($$$$)</span>
       <div class="box">
@@ -424,10 +431,11 @@ function ordered(l0){let l=l0;
 function esc(t){return String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function renderNotes(){$('#notes').classList.toggle('dark',cfg.theme==='dark');
   const c=$('#cards');c.innerHTML='';
-  cfg.lists.forEach((l,i)=>{const o=ordered(l);const r=document.createElement('div');r.className='nrow';
+  const vis=cfg.lists.filter(l=>!l.hidden).length;
+  cfg.lists.forEach((l,i)=>{if(l.hidden)return;const o=ordered(l);const r=document.createElement('div');r.className='nrow';
     r.innerHTML='<b>'+esc(l.title)+'</b><small><em>'+dayLabel(l)+'</em>'+esc(o.slice(0,3).map((t,k)=>(k+1)+'. '+t).join(' '))+'</small>';
     r.addEventListener('click',()=>openNote(i));c.appendChild(r);});
-  $('#ncount').textContent=cfg.lists.length+(cfg.lists.length===1?' Nota':' Notas');}
+  $('#ncount').textContent=vis+(vis===1?' Nota':' Notas');}
 function openNotes(){dotNew=false;updDot();renderNotes();$('#nNote').style.transform='translateX(100%)';$('#nList .scroll').scrollTop=0;show('notes');
   const n=cfg.notesIcon,el=$('#notes');el.style.transformOrigin=(n.x*100)+'% '+(n.y*100)+'%';
   anim(el,[{transform:'scale(.16)',opacity:.2,borderRadius:'40px'},{transform:'scale(1)',opacity:1,borderRadius:'0px'}],380);}
@@ -461,12 +469,14 @@ function openSettings(){drag=null;setPage(page,false);fillMain();$('#sMain').sty
 function closeSettings(){const a=anim($('#settings'),[{transform:'translateY(0)'},{transform:'translateY(100%)'}],280);const f=()=>{hide('settings');if($('#notes').classList.contains('on')){renderNotes();if(curNote>=0)openNote(curNote);}};if(a)a.onfinish=f;else f();}
 $('#sDone').onclick=closeSettings;
 function dupCount(l){const s={},d=[];l.items.forEach(x=>{if(s[x])d.push(x);s[x]=1;});return d;}
-function fillMain(){$('#sVer').textContent='Versão 9 · tela '+screen.height+' · área '+innerHeight+(isStandalone?' · app':' · navegador');
+function fillMain(){$('#sVer').textContent='Versão 10 · tela '+screen.height+' · área '+innerHeight+(isStandalone?' · app':' · navegador');
   $('#sCurN').textContent=cfg.N;$('#sTheme').value=cfg.theme;$('#sLock').value=String(cfg.lock?1:0);
   $('#sSrc').value=cfg.src||'off';$('#sInj').value=cfg.injId||'';$('#sWk').value=cfg.wk||'';$('#sPr').value=cfg.prompt||'';$('#sTop').value=cfg.topic||'';$('#sTestR').textContent='';$('#sLast').textContent=lastInfo;srcRows();
   const b=$('#sLists');b.innerHTML='';
   cfg.lists.forEach((l,i)=>{const r=document.createElement('div');r.className='row link';const d=dupCount(l);
-    r.innerHTML='<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(l.title)+'</span><span class="sub">'+(d.length?'⚠︎ repetidos · ':'')+esc(l.forced||'—')+'</span>';
+    r.innerHTML='<label class="sw" title="Mostrar no Notas"><input type="checkbox"'+(l.hidden?'':' checked')+'><i></i></label><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'+(l.hidden?';color:#8e8e93':'')+'">'+esc(l.title)+'</span><span class="sub">'+(d.length?'⚠︎ repetidos · ':'')+esc(l.forced||'—')+'</span>';
+    const sw=r.querySelector('.sw');sw.addEventListener('click',e=>e.stopPropagation());
+    sw.querySelector('input').onchange=e=>{l.hidden=!e.target.checked;save();fillMain();};
     r.onclick=()=>openList(i);b.appendChild(r);});
   if(!cfg.lists.length)b.innerHTML='<div class="row"><span style="color:#8e8e93">Nenhuma lista</span></div>';}
 $('#sTheme').onchange=e=>{cfg.theme=e.target.value;save();};
